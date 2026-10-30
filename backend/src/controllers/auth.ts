@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { config } from '../config/env';
 import { AuthRequest } from '../middleware/auth';
-import { AppError, UnauthorizedError, ValidationError } from '../utils/errors';
+import { AppError, UnauthorizedError, ValidationError, ConflictError } from '../utils/errors';
 
 const prisma = new PrismaClient();
 
@@ -29,14 +29,18 @@ function generateToken(userId: string): string {
 export async function register(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const data = registerSchema.parse(req.body);
+    console.log(`[AUTH] Registration request received for email: ${data.email}, name: ${data.name}`);
 
     // Check if user exists
+    console.log(`[AUTH] Querying database for existing user...`);
     const existing = await prisma.user.findUnique({ where: { email: data.email } });
     if (existing) {
-      throw new ValidationError('Email already registered');
+      console.log(`[AUTH] Conflict: email ${data.email} is already registered`);
+      throw new ConflictError('An account with this email already exists.', 'EMAIL_ALREADY_EXISTS');
     }
 
     // Hash password
+    console.log(`[AUTH] Hashing password and preparing user record...`);
     const passwordHash = await bcrypt.hash(data.password, 12);
 
     // Create user
@@ -47,10 +51,12 @@ export async function register(req: AuthRequest, res: Response, next: NextFuncti
         name: data.name,
       },
     });
+    console.log(`[AUTH] Successfully created user record: ${user.id} (${user.email})`);
 
     const token = generateToken(user.id);
 
     res.status(201).json({
+      success: true,
       message: 'Registration successful',
       token,
       user: {
@@ -59,10 +65,11 @@ export async function register(req: AuthRequest, res: Response, next: NextFuncti
         name: user.name,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.error(`[AUTH] Registration failed: [${error.name || 'Error'}] ${error.message || error}`);
     if (error instanceof z.ZodError) {
       const message = error.errors.map(e => e.message).join(', ');
-      next(new ValidationError(message));
+      next(new ValidationError(message, 'VALIDATION_ERROR'));
     } else {
       next(error);
     }
@@ -72,20 +79,25 @@ export async function register(req: AuthRequest, res: Response, next: NextFuncti
 export async function login(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const data = loginSchema.parse(req.body);
+    console.log(`[AUTH] Login attempt for email: ${data.email}`);
 
     const user = await prisma.user.findUnique({ where: { email: data.email } });
     if (!user) {
+      console.log(`[AUTH] Login failed: User ${data.email} not found`);
       throw new UnauthorizedError('Invalid email or password');
     }
 
     const valid = await bcrypt.compare(data.password, user.passwordHash);
     if (!valid) {
+      console.log(`[AUTH] Login failed: Invalid password for ${data.email}`);
       throw new UnauthorizedError('Invalid email or password');
     }
 
     const token = generateToken(user.id);
+    console.log(`[AUTH] User authenticated successfully: ${user.id}`);
 
     res.json({
+      success: true,
       message: 'Login successful',
       token,
       user: {
@@ -97,7 +109,7 @@ export async function login(req: AuthRequest, res: Response, next: NextFunction)
   } catch (error) {
     if (error instanceof z.ZodError) {
       const message = error.errors.map(e => e.message).join(', ');
-      next(new ValidationError(message));
+      next(new ValidationError(message, 'VALIDATION_ERROR'));
     } else {
       next(error);
     }
@@ -131,7 +143,5 @@ export async function me(req: AuthRequest, res: Response, next: NextFunction) {
 }
 
 export async function logout(_req: AuthRequest, res: Response) {
-  // JWT is stateless — client simply discards the token.
-  // For production, implement token blacklisting.
   res.json({ message: 'Logged out successfully' });
 }

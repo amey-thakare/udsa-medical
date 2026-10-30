@@ -1,8 +1,11 @@
+import '../models/document.dart';
+import 'dart:io';
+import '../services/gemini_service.dart';
+import '../services/medical_history_cache.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
-import 'dart:io';
 import '../services/document_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/loading_indicator.dart';
@@ -87,14 +90,84 @@ class _UploadScreenState extends State<UploadScreen> {
       final doc = res['document'] as Map<String, dynamic>;
       setState(() => _success = doc);
 
-      // Auto-trigger OCR
+      // Auto-trigger direct AI analysis & parameter extraction
+      final docId = doc['id'] as String;
       try {
-        await _docService.process(doc['id'] as String);
-      } catch (_) {}
+        if (_file != null) {
+          final bytes = await File(_file!.path).readAsBytes();
+          final geminiService = GeminiService();
+          final result = await geminiService.transcribeBytes(bytes);
+          final convertedMeasurements = result.parameters.map((p) {
+            final paramName = p['name']?.toString() ?? 'param';
+            final displayName = p['displayName']?.toString() ?? paramName;
+            final val = p['value'] is num
+                ? (p['value'] as num).toDouble()
+                : (double.tryParse(p['value'].toString().replaceAll(',', '')) ?? 0.0);
+            final unit = p['unit']?.toString() ?? '';
+            final orig = p['originalText']?.toString() ?? '$displayName: $val $unit';
+
+            return {
+              'id': 'ai_${paramName}_${DateTime.now().millisecondsSinceEpoch}',
+              'value': val,
+              'unit': unit,
+              'originalText': orig,
+              'confidence': result.confidence,
+              'measuredAt': DateTime.now().toIso8601String(),
+              'parameterId': paramName,
+              'parameter': {'displayName': displayName},
+            };
+          }).toList();
+
+          final measurementsList = convertedMeasurements.map((m) => HealthMeasurementRef.fromJson(m)).toList();
+          await MedicalHistoryCache.saveDocumentState(
+            documentId: docId,
+            text: result.text,
+            confidence: result.confidence,
+            summary: result.summary,
+            categoryName: result.detectedCategory,
+            tags: result.tags,
+            measurements: measurementsList,
+          );
+
+          final updatedRes = await _docService.updateText(
+            docId,
+            text: result.text,
+            confidence: result.confidence,
+            categoryName: result.detectedCategory,
+            tags: result.tags,
+            parameters: result.parameters,
+            summary: result.summary,
+          );
+
+          if (updatedRes['document'] != null) {
+            final map = Map<String, dynamic>.from(updatedRes['document'] as Map);
+            if ((map['healthMeasurements'] as List?)?.isEmpty ?? true) {
+              map['healthMeasurements'] = convertedMeasurements;
+            }
+            setState(() => _success = map);
+          } else {
+            final map = Map<String, dynamic>.from(doc);
+            map['healthMeasurements'] = convertedMeasurements;
+            map['category'] = {'name': result.detectedCategory};
+            map['extractedText'] = {'text': result.text, 'confidence': result.confidence};
+            setState(() => _success = map);
+          }
+        }
+      } catch (aiError) {
+        debugPrint('AI analysis note: $aiError');
+      }
     } catch (e) {
       setState(() => _error = 'Upload failed. Please try again.');
     } finally {
       setState(() => _uploading = false);
+    }
+  }
+
+  void _handleBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/home');
     }
   }
 
@@ -111,10 +184,21 @@ class _UploadScreenState extends State<UploadScreen> {
   @override
   Widget build(BuildContext context) {
     if (_success != null) {
-      return _buildSuccessView();
+      return PopScope(
+        canPop: context.canPop(),
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) context.go('/home');
+        },
+        child: _buildSuccessView(),
+      );
     }
 
-    return Scaffold(
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) context.go('/home');
+      },
+      child: Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -126,7 +210,7 @@ class _UploadScreenState extends State<UploadScreen> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back),
-                    onPressed: () => context.pop(),
+                    onPressed: _handleBack,
                     color: AppTheme.textSecondary,
                   ),
                   const Text(
@@ -206,22 +290,17 @@ class _UploadScreenState extends State<UploadScreen> {
                       Row(
                         children: [
                           Container(
-                            width: 42,
-                            height: 42,
+                            width: 44,
+                            height: 44,
                             decoration: BoxDecoration(
-                              color: _fileName?.endsWith('.pdf') == true
-                                  ? const Color(0xFFFEE2E2)
-                                  : const Color(0xFFDBEAFE),
-                              borderRadius:
-                                  BorderRadius.circular(AppTheme.radiusSm),
+                              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                              border: Border.all(color: AppTheme.border),
                             ),
-                            child: Center(
-                              child: Text(
-                                _fileName?.endsWith('.pdf') == true
-                                    ? '📄'
-                                    : '🖼️',
-                                style: const TextStyle(fontSize: 20),
-                              ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(AppTheme.radiusSm - 1),
+                              child: _fileName?.endsWith('.pdf') == true
+                                  ? Image.asset('assets/images/report_icon.png', fit: BoxFit.cover)
+                                  : Image.file(_file!, fit: BoxFit.cover),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -300,7 +379,8 @@ class _UploadScreenState extends State<UploadScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildSuccessView() {
@@ -314,7 +394,7 @@ class _UploadScreenState extends State<UploadScreen> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back),
-                    onPressed: () => context.pop(),
+                    onPressed: _handleBack,
                     color: AppTheme.textSecondary,
                   ),
                   const Text('Upload Document',
@@ -344,8 +424,19 @@ class _UploadScreenState extends State<UploadScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () =>
-                      context.go('/documents/${_success?['id']}'),
+                  onPressed: () {
+                    final docMap = _success;
+                    MedicalDocument? medDoc;
+                    if (docMap != null) {
+                      try {
+                        medDoc = MedicalDocument.fromJson(docMap);
+                      } catch (_) {}
+                    }
+                    context.go(
+                      "/documents/${_success?['id']}",
+                      extra: medDoc,
+                    );
+                  },
                   child: const Text('View Document'),
                 ),
               ),

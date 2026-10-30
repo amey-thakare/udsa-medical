@@ -1,9 +1,11 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../services/document_service.dart';
 import '../services/health_service.dart';
+import '../services/medical_history_cache.dart';
 import '../models/document.dart';
 import '../theme/app_theme.dart';
 import '../widgets/stat_card.dart';
@@ -38,19 +40,29 @@ class _HomeScreenState extends State<HomeScreen> {
       final results = await Future.wait([
         _docService.list(limit: 5),
         _healthService.getParameters(),
+        MedicalHistoryCache.getProcessedDocIds(),
       ]);
 
       final docsData = results[0] as Map<String, dynamic>;
       final params = results[1] as List;
+      final processedDocIds = results[2] as Set<String>;
 
-      final docs = (docsData['documents'] as List)
-          .map((d) => MedicalDocument.fromJson(d as Map<String, dynamic>))
+      final rawDocs = (docsData['documents'] as List)
+          .map((d) => d is MedicalDocument
+              ? d
+              : MedicalDocument.fromJson(d as Map<String, dynamic>))
           .toList();
+
+      final docs =
+          await Future.wait(rawDocs.map(MedicalHistoryCache.hydrateDocument));
 
       final totalMeasurements = params.fold<int>(
           0, (sum, p) => sum + (p.measurementCount as int));
-      final processedCount =
+      
+      final inDocProcessedCount =
           docs.where((d) => d.processingStatus == 'COMPLETED').length;
+      final processedCount =
+          math.max(processedDocIds.length, inDocProcessedCount);
 
       setState(() {
         _totalDocs =
@@ -87,40 +99,19 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Greeting with Logo
-                Row(
-                  children: [
-                    ClipOval(
-                      child: Image.asset(
-                        'assets/images/logo.png',
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Hello, ${user?.name.split(' ').first ?? 'User'} 👋',
-                            style: const TextStyle(
-                                fontSize: 22, fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'All your Reports, Simple, Smart, Sorted',
-                            style: TextStyle(
-                                fontSize: 13, color: AppTheme.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                // Greeting
+                Text(
+                  'Hello, ${user?.name.split(' ').first ?? 'User'}',
+                  style: const TextStyle(
+                      fontSize: 22, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'All your Reports, Simple, Smart, Sorted',
+                  style: TextStyle(
+                      fontSize: 13, color: AppTheme.textSecondary),
                 ),
                 const SizedBox(height: 16),
-
 
                 // Stats grid
                 Row(
@@ -164,7 +155,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () => context.go('/upload'),
+                        onPressed: () async {
+                          await context.push('/upload');
+                          _loadDashboard();
+                        },
                         icon: const Icon(Icons.upload_file, size: 16),
                         label: const Text('Upload Report',
                             style: TextStyle(fontSize: 13)),
@@ -173,7 +167,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () => context.go('/search'),
+                        onPressed: () async {
+                          await context.push('/search');
+                          _loadDashboard();
+                        },
                         icon: const Icon(Icons.search, size: 16),
                         label: const Text('Search',
                             style: TextStyle(fontSize: 13)),
@@ -193,7 +190,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           fontSize: 16, fontWeight: FontWeight.w600),
                     ),
                     GestureDetector(
-                      onTap: () => context.go('/records'),
+                      onTap: () async {
+                        await context.push('/records');
+                        _loadDashboard();
+                      },
                       child: const Text(
                         'View All',
                         style: TextStyle(
@@ -218,7 +218,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   ..._recentDocs.map(
                     (doc) => DocumentListItem(
                       document: doc,
-                      onTap: () => context.go('/documents/${doc.id}'),
+                      onTap: () async {
+                        await context.push('/documents/${doc.id}', extra: doc);
+                        _loadDashboard();
+                      },
                     ),
                   ),
 

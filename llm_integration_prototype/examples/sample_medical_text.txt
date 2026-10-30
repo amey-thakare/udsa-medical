@@ -1,0 +1,11 @@
+Complete Blood Count
+Hemoglobin: 13.8 g/dL
+WBC Count: 7,200 cells/uL
+Platelet Count: 2.5 lakh/uL
+
+Biochemistry
+Fasting Blood Glucose: 104 mg/dL
+HbA1c: 5.4 %
+Serum Creatinine: 0.9 mg/dL
+Blood Pressure: 118/76 mmHg
+Heart Rate: 74 bpm

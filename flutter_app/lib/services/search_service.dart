@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 import 'api_client.dart';
+import '../models/document.dart';
+import 'medical_history_cache.dart';
 
 class SearchService {
   final Dio _dio = ApiClient().dio;
@@ -11,6 +13,17 @@ class SearchService {
       'page': page,
       'limit': limit,
     });
-    return response.data as Map<String, dynamic>;
+    final data = response.data as Map<String, dynamic>;
+    if (data['results'] is List) {
+      final rawDocs = (data['results'] as List)
+          .map((d) => d is MedicalDocument
+              ? d
+              : MedicalDocument.fromJson(d as Map<String, dynamic>))
+          .toList();
+      final hydrated =
+          await Future.wait(rawDocs.map(MedicalHistoryCache.hydrateDocument));
+      data['results'] = hydrated.map((d) => d.toJson()).toList();
+    }
+    return data;
   }
 }

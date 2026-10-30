@@ -19,4 +19,11 @@ class MedicalCategory {
       description: json['description'] as String?,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'icon': icon,
+    if (description != null) 'description': description,
+  };
 }

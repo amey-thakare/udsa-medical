@@ -6,6 +6,6 @@ void main() {
     await tester.pumpWidget(const MedRecordApp());
     await tester.pump();
     // Splash screen should show the app name
-    expect(find.text('MedRecord'), findsOneWidget);
+    expect(find.text('MyHealthMitra'), findsOneWidget);
   });
 }

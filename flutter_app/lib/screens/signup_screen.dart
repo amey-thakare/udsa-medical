@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_handler.dart';
 import 'package:go_router/go_router.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -30,10 +31,13 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Future<void> _handleSubmit() async {
+    // Prevent duplicate submission while loading
+    if (_loading) return;
+
     if (!_formKey.currentState!.validate()) return;
 
     if (_passwordController.text != _confirmPasswordController.text) {
-      setState(() => _error = 'Passwords do not match');
+      setState(() => _error = 'Passwords do not match.');
       return;
     }
 
@@ -50,7 +54,14 @@ class _SignupScreenState extends State<SignupScreen> {
           );
       if (mounted) context.go('/home');
     } catch (e) {
-      setState(() => _error = 'Registration failed. Please try again.');
+      if (mounted) {
+        setState(() {
+          _error = ApiErrorHandler.extract(
+            e,
+            fallback: "We couldn't create your account. Please try again.",
+          );
+        });
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -66,15 +77,6 @@ class _SignupScreenState extends State<SignupScreen> {
             key: _formKey,
             child: Column(
               children: [
-                ClipOval(
-                  child: Image.asset(
-                    'assets/images/logo.png',
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                const SizedBox(height: 16),
                 const Text(
                   'Create Account',
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
@@ -95,9 +97,14 @@ class _SignupScreenState extends State<SignupScreen> {
                       borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                       border: Border.all(color: const Color(0xFFFCA5A5)),
                     ),
-                    child: Text(_error!,
-                        style: const TextStyle(
-                            fontSize: 13, color: AppTheme.danger)),
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppTheme.danger,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -109,7 +116,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     hintText: 'John Doe',
                   ),
                   validator: (v) =>
-                      v == null || v.isEmpty ? 'Name is required' : null,
+                      v == null || v.trim().isEmpty ? 'Name is required' : null,
                 ),
                 const SizedBox(height: 16),
 
@@ -120,8 +127,17 @@ class _SignupScreenState extends State<SignupScreen> {
                     labelText: 'Email',
                     hintText: 'you@example.com',
                   ),
-                  validator: (v) =>
-                      v == null || v.isEmpty ? 'Email is required' : null,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Email is required';
+                    }
+                    final emailRegex =
+                        RegExp(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$');
+                    if (!emailRegex.hasMatch(v.trim())) {
+                      return 'Please enter a valid email address.';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -133,7 +149,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     hintText: 'Min. 6 characters',
                   ),
                   validator: (v) => v == null || v.length < 6
-                      ? 'Min. 6 characters'
+                      ? 'Your password does not meet the minimum length requirement.'
                       : null,
                 ),
                 const SizedBox(height: 16),
@@ -146,7 +162,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     hintText: 'Re-enter password',
                   ),
                   validator: (v) => v == null || v.length < 6
-                      ? 'Min. 6 characters'
+                      ? 'Your password does not meet the minimum length requirement.'
                       : null,
                 ),
                 const SizedBox(height: 24),
@@ -156,7 +172,8 @@ class _SignupScreenState extends State<SignupScreen> {
                   child: ElevatedButton(
                     onPressed: _loading ? null : _handleSubmit,
                     child: Text(
-                        _loading ? 'Creating Account...' : 'Create Account'),
+                      _loading ? 'Creating Account...' : 'Create Account',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -167,7 +184,9 @@ class _SignupScreenState extends State<SignupScreen> {
                     const Text(
                       'Already have an account? ',
                       style: TextStyle(
-                          fontSize: 14, color: AppTheme.textSecondary),
+                        fontSize: 14,
+                        color: AppTheme.textSecondary,
+                      ),
                     ),
                     GestureDetector(
                       onTap: () => context.go('/login'),

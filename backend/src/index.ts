@@ -12,6 +12,7 @@ import searchRoutes from './routes/search';
 import categoryRoutes from './routes/categories';
 import healthParamRoutes from './routes/healthParams';
 import healthTrendRoutes from './routes/healthTrends';
+import ocrRoutes from './routes/ocr';
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use('/api/search', searchRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/health-parameters', healthParamRoutes);
 app.use('/api/health-trends', healthTrendRoutes);
+app.use('/api/ocr', ocrRoutes);
 
 // =============================================
 // ERROR HANDLING
@@ -56,33 +58,73 @@ app.use('/api/health-trends', healthTrendRoutes);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
-  res.status(404).json({ error: 'Route not found' });
+  res.status(404).json({
+    success: false,
+    code: 'ROUTE_NOT_FOUND',
+    error: 'Route not found',
+    message: 'Route not found',
+  });
 });
 
 // Global error handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('Error:', err.message);
+  console.error('Error occurred:', err.name, '-', err.message);
 
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({
+      success: false,
+      code: err.code || 'ERROR',
       error: err.message,
+      message: err.message,
+    });
+  }
+
+  // Database / Prisma errors
+  const isDbError =
+    err.name === 'PrismaClientInitializationError' ||
+    err.name === 'PrismaClientKnownRequestError' ||
+    err.name === 'PrismaClientRustPanicError' ||
+    err.name === 'PrismaClientUnknownRequestError' ||
+    err.message.includes("Can't reach database server") ||
+    err.message.includes('Error querying the database') ||
+    err.message.includes('tenant/user') ||
+    err.message.includes('connection refused') ||
+    err.message.includes('ENOTFOUND');
+
+  if (isDbError) {
+    return res.status(503).json({
+      success: false,
+      code: 'DATABASE_UNAVAILABLE',
+      error: 'The database service is temporarily unavailable. Please try again later.',
+      message: 'The database service is temporarily unavailable. Please try again later.',
     });
   }
 
   // Multer errors
   if (err.message && err.message.includes('Invalid file type')) {
-    return res.status(400).json({ error: err.message });
+    return res.status(400).json({
+      success: false,
+      code: 'INVALID_FILE_TYPE',
+      error: err.message,
+      message: err.message,
+    });
   }
 
   if ((err as any).code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({
+      success: false,
+      code: 'FILE_TOO_LARGE',
       error: `File too large. Maximum size: ${config.maxFileSizeMB}MB`,
+      message: `File too large. Maximum size: ${config.maxFileSizeMB}MB`,
     });
   }
 
-  // Generic error - don't expose details in production
+  // Generic error - never expose stack traces or raw details to client
   res.status(500).json({
-    error: config.nodeEnv === 'development' ? err.message : 'Internal server error',
+    success: false,
+    code: 'INTERNAL_SERVER_ERROR',
+    error: 'An unexpected error occurred. Please try again later.',
+    message: 'An unexpected error occurred. Please try again later.',
   });
 });
 

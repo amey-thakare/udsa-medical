@@ -1,0 +1,14 @@
+dataset:
+  name: local_ocr_dataset
+  root: ../dataset
+  type: auto
+  level: synthetic_word
+
+splits:
+  train: 0.80
+  validation: 0.10
+  test: 0.10
+
+batch_size: 128
+epochs: 10
+learning_rate: 0.001

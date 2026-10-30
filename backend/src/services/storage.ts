@@ -4,20 +4,19 @@ import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs';
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
+const DEFAULT_UPLOAD_DIR = path.resolve(__dirname, '../../uploads');
+const UPLOAD_DIR = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : DEFAULT_UPLOAD_DIR;
+
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
 /**
- * File storage service - Cloud storage using Firebase Storage.
+ * File storage service - Cloud storage using Firebase Storage with local fallback.
  */
 export class StorageService {
-  
-  // No longer using local uploadDir in production cloud mode.
 
   getFilePath(fileName: string): string {
-    // In Firebase Storage, this is just the path in the bucket.
     return `uploads/${fileName}`;
   }
 
@@ -61,7 +60,8 @@ export class StorageService {
       const [buffer] = await file.download();
       return buffer;
     } else {
-      return fs.promises.readFile(path.join(UPLOAD_DIR, fileName));
+      const localPath = path.join(UPLOAD_DIR, fileName);
+      return fs.promises.readFile(localPath);
     }
   }
 
@@ -76,7 +76,7 @@ export class StorageService {
   }
 
   /**
-   * Upload a buffer to Firebase Storage and return the unique filename.
+   * Upload a buffer to Firebase Storage or local fallback and return the unique filename.
    */
   async uploadBuffer(buffer: Buffer, originalName: string, mimeType: string): Promise<string> {
     const ext = path.extname(originalName).toLowerCase();

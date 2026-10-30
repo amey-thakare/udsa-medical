@@ -1,0 +1,22 @@
+# ==============================================================================
+# MyHealthMitra — Experimental Open-Source LLM Integration Prototype
+# Python Dependencies
+# ==============================================================================
+# Python Version Requirement: >= 3.9 (Recommended: 3.10 or 3.11)
+# ==============================================================================
+
+# Core Data Validation & Schema Serialization
+pydantic>=2.0.0,<3.0.0
+pyyaml>=6.0.0
+
+# Testing & Quality Assurance
+pytest>=7.4.0
+
+# Optional GGUF Local Runtime (Required ONLY if running local GGUF model inference)
+# Note: This is an optional execution dependency. Unit tests, document preprocessing,
+# schema validation, evaluation metrics, and report generators run without this package.
+# Install instructions for llama-cpp-python:
+#   CPU: pip install llama-cpp-python
+#   Apple Silicon (Metal): CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python
+#   NVIDIA CUDA: CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python
+# llama-cpp-python>=0.2.80

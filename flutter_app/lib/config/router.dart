@@ -1,3 +1,4 @@
+import '../models/document.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../screens/splash_screen.dart';
@@ -80,7 +81,13 @@ GoRouter createRouter(AuthProvider authProvider) {
         path: '/documents/:id',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
-          return DocumentDetailScreen(documentId: id);
+          final doc = state.extra is MedicalDocument
+              ? state.extra as MedicalDocument
+              : null;
+          return DocumentDetailScreen(
+            documentId: id,
+            initialDocument: doc,
+          );
         },
       ),
       GoRoute(

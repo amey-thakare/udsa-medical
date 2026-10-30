@@ -24,6 +24,14 @@ class _HealthTrendsScreenState extends State<HealthTrendsScreen> {
   bool _loading = true;
   String? _error;
 
+  void _handleBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/health');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -55,22 +63,28 @@ class _HealthTrendsScreenState extends State<HealthTrendsScreen> {
     }
 
     if (_error != null) {
-      return Scaffold(
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Row(children: [
-                  IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: () => context.pop()),
-                  const Text('Health Trends',
-                      style: TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.w700)),
-                ]),
-                AlertBanner(message: _error!, type: AlertType.error),
-              ],
+      return PopScope(
+        canPop: context.canPop(),
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) context.go('/health');
+        },
+        child: Scaffold(
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(children: [
+                    IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: _handleBack),
+                    const Text('Health Trends',
+                        style: TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.w700)),
+                  ]),
+                  AlertBanner(message: _error!, type: AlertType.error),
+                ],
+              ),
             ),
           ),
         ),
@@ -111,21 +125,26 @@ class _HealthTrendsScreenState extends State<HealthTrendsScreen> {
       }
     }
 
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => context.pop(),
-                    color: AppTheme.textSecondary,
-                  ),
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) context.go('/health');
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: _handleBack,
+                      color: AppTheme.textSecondary,
+                    ),
                   Text(
                     '${data.parameter.displayName} Trends',
                     style: const TextStyle(
@@ -325,7 +344,8 @@ class _HealthTrendsScreenState extends State<HealthTrendsScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildChart(

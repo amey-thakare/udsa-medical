@@ -14,6 +14,7 @@ async function main() {
     { name: 'Medical Bill', description: 'Medical bills and insurance documents', icon: '💰' },
     { name: 'Lab Report', description: 'Laboratory test results', icon: '🔬' },
     { name: 'General', description: 'General medical documents', icon: '📋' },
+    { name: 'Other', description: 'Other or non-medical documents', icon: '📁' },
   ];
 
   for (const cat of categories) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_handler.dart';
 import 'package:go_router/go_router.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -26,7 +27,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleSubmit() async {
+    if (_loading) return;
     if (!_formKey.currentState!.validate()) return;
+
     setState(() {
       _loading = true;
       _error = null;
@@ -39,19 +42,17 @@ class _LoginScreenState extends State<LoginScreen> {
           );
       if (mounted) context.go('/home');
     } catch (e) {
-      setState(() {
-        _error = _extractError(e);
-      });
+      if (mounted) {
+        setState(() {
+          _error = ApiErrorHandler.extract(
+            e,
+            fallback: 'Login failed. Please check your credentials.',
+          );
+        });
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  String _extractError(dynamic e) {
-    if (e.toString().contains('DioException')) {
-      return 'Login failed. Please check your credentials.';
-    }
-    return e.toString();
   }
 
   @override
@@ -64,16 +65,6 @@ class _LoginScreenState extends State<LoginScreen> {
             key: _formKey,
             child: Column(
               children: [
-                // Logo
-                ClipOval(
-                  child: Image.asset(
-                    'assets/images/logo.png',
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                const SizedBox(height: 16),
                 const Text(
                   'Welcome Back',
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
@@ -98,7 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(
                       _error!,
                       style:
-                          const TextStyle(fontSize: 13, color: AppTheme.danger),
+                          const TextStyle(fontSize: 13, color: AppTheme.danger, fontWeight: FontWeight.w500),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -113,7 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     hintText: 'you@example.com',
                   ),
                   validator: (v) =>
-                      v == null || v.isEmpty ? 'Email is required' : null,
+                      v == null || v.trim().isEmpty ? 'Email is required' : null,
                 ),
                 const SizedBox(height: 16),
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/search_service.dart';
+import '../services/medical_history_cache.dart';
 import '../models/document.dart';
 import '../theme/app_theme.dart';
 import '../widgets/document_list_item.dart';
@@ -42,9 +43,13 @@ class _SearchScreenState extends State<SearchScreen> {
 
     try {
       final data = await _searchService.search(q);
-      final results = (data['results'] as List)
-          .map((d) => MedicalDocument.fromJson(d as Map<String, dynamic>))
+      final rawResults = (data['results'] as List)
+          .map((d) => d is MedicalDocument
+              ? d
+              : MedicalDocument.fromJson(d as Map<String, dynamic>))
           .toList();
+      final results =
+          await Future.wait(rawResults.map(MedicalHistoryCache.hydrateDocument));
 
       setState(() {
         _results = results;
@@ -58,6 +63,14 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
+  void _handleBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/home');
+    }
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -66,16 +79,30 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) context.go('/home');
+      },
+      child: Scaffold(
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Search Records',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: _handleBack,
+                    color: AppTheme.textSecondary,
+                  ),
+                  const Text(
+                    'Search Records',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
 
@@ -135,8 +162,10 @@ class _SearchScreenState extends State<SearchScreen> {
                                 ),
                               ..._results.map((doc) => DocumentListItem(
                                     document: doc,
-                                    onTap: () => context
-                                        .go('/documents/${doc.id}'),
+                                    onTap: () async {
+                                      await context.push('/documents/${doc.id}', extra: doc);
+                                      _search();
+                                    },
                                   )),
                             ],
                           ),
@@ -145,6 +174,7 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }

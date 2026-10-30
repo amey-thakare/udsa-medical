@@ -1,8 +1,45 @@
+# Dependencies
 node_modules/
+.dart_tool/
+.pub-cache/
+.pub/
+
+# Builds & Binaries
 dist/
+build/
+**/build/
+*.apk
+*.aab
+*.idsig
+
+# Environment & Credentials
 .env
+.env.*
+backend/.env
+backend/.env.*
+
+# Database & Uploads
 *.db
 *.db-journal
 uploads/*
 !uploads/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Datasets (large files)
+dataset/
+
+# Python & OCR cache
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+.venv/
+
+# Ephemeral Flutter files
+**/Flutter/ephemeral/
+
+# OS & Editor
 .DS_Store
+.vscode/
+.idea/

@@ -1,0 +1,83 @@
+# ==============================================================================
+# MyHealthMitra — Experimental Open-Source LLM Configuration
+# ==============================================================================
+# Model: Qwen3.8-Flash-Next-abliterated-GSQ-RCO-Strata-GGUF
+# Source: https://huggingface.co/alesha-pro/Qwen3.8-Flash-Next-abliterated-GSQ-RCO-Strata-GGUF
+# Base Model: ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF
+# Architecture: Mixture-of-Experts (MoE) Multimodal Vision-Language Model
+# Quantization: GSQ (Gumbel-Softmax Quantization) + RCO (Riemannian Constrained Optimization)
+# ==============================================================================
+
+model:
+  repository_id: "alesha-pro/Qwen3.8-Flash-Next-abliterated-GSQ-RCO-Strata-GGUF"
+  base_model: "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+  pipeline_tag: "image-text-to-text"
+  architecture: "qwen2_moe"
+  format: "GGUF"
+  
+  # Available quantization variants in the upstream repository:
+  # - IQ2_XS: ~2.2 bits/weight, lowest memory footprint (~3.6s first token, 84-87 tokens/sec decode)
+  # - IQ3_S: ~3.3 bits/weight, recommended sweet spot (92.5-93.0% top-1 agreement with BF16 reference)
+  # - IQ3_XXS: ~3.1 bits/weight, ultra-compact 3-bit variant
+  # - Q2_0: Legacy 2-bit quantization
+  quantizations:
+    available:
+      - "IQ2_XS"
+      - "IQ3_S"
+      - "IQ3_XXS"
+      - "Q2_0"
+    recommended: "IQ3_S"
+
+  # Path to the local GGUF weight file.
+  # Leave empty or null until weights are manually placed in this directory.
+  # Note: The model files are split into two chunks (e.g. *-00001-of-00002.gguf and *-00002-of-00002.gguf).
+  # llama.cpp automatically loads subsequent shards when given the path to 00001.
+  local_weights_path: null
+
+  # Optional multimodal projector for direct image input:
+  # mmproj-Qwen3.8-Flash-Next-BF16.gguf (required only for image input, not needed for OCR text extraction)
+  multimodal_projector_path: null
+
+  # Optional control vector for abliteration steering:
+  # Huihui-Qwen3.8-Flash-Next-refusal-direction-r.gguf
+  control_vector_path: null
+
+runtime:
+  engine: "llama_cpp"  # Options: llama_cpp, llama_server, ollama, vllm_gguf
+  context_length: 8192  # Model supports up to 131,072 / 262,144 tokens; 8192 is ideal for clinical documents
+  max_output_tokens: 2048
+  temperature: 0.1     # Low temperature for deterministic, clinically faithful extraction
+  top_p: 0.95
+  repeat_penalty: 1.05
+  
+  # Hardware execution settings
+  n_threads: 8         # CPU execution threads
+  n_gpu_layers: -1     # Number of layers offloaded to GPU (-1 = all layers, 0 = CPU only)
+  n_batch: 512         # Batch size for prompt evaluation
+  verbose: false
+
+extraction:
+  target_parameters:
+    - "glucose"
+    - "hemoglobin"
+    - "systolic_bp"
+    - "diastolic_bp"
+    - "cholesterol"
+    - "heart_rate"
+    - "hba1c"
+    - "creatinine"
+    - "wbc"
+    - "platelets"
+
+  allowed_categories:
+    - "Blood Test"
+    - "Lab Report"
+    - "Prescription"
+    - "Scan Report"
+    - "Discharge Summary"
+    - "Medical Bill"
+    - "General or Other"
+
+  # Safety filter rules
+  strict_grounding: true         # Reject parameters without supporting source text
+  validate_physiological_ranges: true # Flag values outside biologically plausible bounds
